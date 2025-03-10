@@ -30,7 +30,7 @@ jobs:
           pyinstaller --onefile weather.py
           ls -l dist  # Debugging: List files in dist folder
           
-          # Rename build output based on branch
+          # Rename build output based on branch on it
           if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
