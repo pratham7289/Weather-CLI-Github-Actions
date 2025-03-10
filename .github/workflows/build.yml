@@ -30,7 +30,7 @@ jobs:
           pyinstaller --onefile weather.py
           ls -l dist  # Debugging: List files in dist folder
           
-          #Now Rename build output based on branch
+          # Rename build output based on branch
           if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
@@ -68,6 +68,8 @@ jobs:
           ls -l $BUILD_DIR  # Debugging: Check stored builds
 
       - name: Commit and push dev build to GitHub repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token (MY_TOKEN)
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -92,10 +94,9 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token (MY_TOKEN)
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
             --title "Build $VERSION" \
             --notes "Automated build and release for Weather CLI Tool."
-
