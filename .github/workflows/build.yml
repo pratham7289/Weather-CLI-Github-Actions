@@ -90,9 +90,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-<<<<<<< HEAD
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access, the write access id written in the top
-e
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access is this
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
