@@ -68,8 +68,10 @@ jobs:
 
       - name: Commit and push dev build to GitHub repo
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Custom token
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token
         run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add $BUILD_DIR/
           git commit -m "Add build $BUILD_NAME"
           git push origin dev
@@ -91,7 +93,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # o  Default token with write access
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
