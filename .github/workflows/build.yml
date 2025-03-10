@@ -3,13 +3,16 @@ name: Build and Release Weather CLI Tool
 on:
   push:
     branches:
-      - feature   # Trigger on push to the feature branch
-      - dev       # Trigger on push to the dev branch
-      - main      # Trigger on push to the main branch
+      - feature
+      - dev
+      - main
 
 env:
-  BUILD_NUMBER: ${{ github.run_number }}  # Unique build number
-  BUILD_DIR: "dev-merger-build"           # Directory to store dev builds
+  BUILD_NUMBER: ${{ github.run_number }}
+  BUILD_DIR: "dev-merger-build"
+
+permissions:
+  contents: write  # Grant write permissions
 
 jobs:
   build:
@@ -28,9 +31,6 @@ jobs:
       - name: Build the project
         run: |
           pyinstaller --onefile weather.py
-          ls -l dist  # Debugging: List files in dist folder
-          
-          # Rename build output based on branch on it
           if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
@@ -65,14 +65,11 @@ jobs:
           BUILD_NAME="weather-dev-${{ env.BUILD_NUMBER }}"
           mkdir -p $BUILD_DIR
           cp dist/weather-dev-${{ env.BUILD_NUMBER }} $BUILD_DIR/$BUILD_NAME
-          ls -l $BUILD_DIR  # Debugging: Check stored builds
 
       - name: Commit and push dev build to GitHub repo
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token (MY_TOKEN)
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Custom token
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add $BUILD_DIR/
           git commit -m "Add build $BUILD_NAME"
           git push origin dev
@@ -94,9 +91,9 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token (MY_TOKEN)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
             --title "Build $VERSION" \
-            --notes "Automated build and release for Weather CLI Tool."
+            --notes "Automated build and release."
