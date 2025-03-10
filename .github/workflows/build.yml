@@ -1,0 +1,99 @@
+name: Build and Release Weather CLI Tool
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+env:
+  BUILD_NUMBER: ${{ github.run_number }}
+  BUILD_DIR: "dev-merger-build"
+
+permissions:
+  contents: write  # Grant write permissions
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Use system-installed Python 3.9
+        run: |
+          python3.9 --version
+          pip3.9 install --upgrade pip
+          pip3.9 install requests pyinstaller
+
+      - name: Build the project
+        run: |
+          pyinstaller --onefile weather.py
+          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            mv dist/weather dist/weather-main-${{ env.BUILD_NUMBER }}
+          fi
+
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weather-tool-${{ github.ref_name }}
+          path: dist/
+
+  store_dev_build:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/dev'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: weather-tool-dev
+          path: dist/
+
+      - name: Create folder for dev build and copy the file
+        run: |
+          BUILD_NAME="weather-dev-${{ env.BUILD_NUMBER }}"
+          mkdir -p $BUILD_DIR
+          cp dist/weather-dev-${{ env.BUILD_NUMBER }} $BUILD_DIR/$BUILD_NAME
+
+      - name: Commit and push dev build to GitHub repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add $BUILD_DIR/
+          git commit -m "Add build $BUILD_NAME"
+          git push origin dev
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: weather-tool-main
+          path: dist/
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access, the write access id written in the top
+        run: |
+          VERSION="v${{ env.BUILD_NUMBER }}"
+          gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
+            --title "Build $VERSION" \
+            --notes "Automated build and release."
+
