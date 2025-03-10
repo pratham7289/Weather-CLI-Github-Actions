@@ -3,7 +3,6 @@ name: Build and Release Weather CLI Tool
 on:
   push:
     branches:
-      - feature
       - dev
       - main
 
@@ -35,8 +34,6 @@ jobs:
             mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
             mv dist/weather dist/weather-main-${{ env.BUILD_NUMBER }}
-          else
-            mv dist/weather dist/weather-feature-${{ env.BUILD_NUMBER }}
           fi
 
       - name: Upload binary as artifact
@@ -93,9 +90,10 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # o  Default token with write access
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
             --title "Build $VERSION" \
             --notes "Automated build and release."
+
