@@ -18,8 +18,13 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout code
+      - name: Increase Git buffer size
+        run: git config --global http.postBuffer 524288000  # 500 MB
+
+      - name: Checkout code with shallow clone
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1  # Shallow clone to reduce fetch size
 
       - name: Use system-installed Python 3.9
         run: |
