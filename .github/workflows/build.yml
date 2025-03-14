@@ -11,20 +11,15 @@ env:
   BUILD_DIR: "dev-merger-build"
 
 permissions:
-  contents: write  # Grant write permissions for releases
+  contents: write  # Grant write permissions
 
 jobs:
   build:
     runs-on: self-hosted
 
     steps:
-      - name: Increase Git buffer size
-        run: git config --global http.postBuffer 524288000  # 500 MB
-
-      - name: Checkout code with shallow clone
+      - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 1  # Shallow clone to reduce fetch size
 
       - name: Use system-installed Python 3.9
         run: |
@@ -53,8 +48,8 @@ jobs:
     if: github.ref == 'refs/heads/dev'
 
     steps:
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -62,15 +57,21 @@ jobs:
           name: weather-tool-dev
           path: dist/
 
-      - name: Create GitHub Release for Dev
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create folder for dev build and copy the file
         run: |
-          VERSION="dev-${{ env.BUILD_NUMBER }}"
-          gh release create "$VERSION" dist/weather-dev-${{ env.BUILD_NUMBER }} \
-            --title "Dev Build $VERSION" \
-            --notes "Automated dev build." \
-            --prerelease
+          BUILD_NAME="weather-dev-${{ env.BUILD_NUMBER }}"
+          mkdir -p $BUILD_DIR
+          cp dist/weather-dev-${{ env.BUILD_NUMBER }} $BUILD_DIR/$BUILD_NAME
+
+      - name: Commit and push dev build to GitHub repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add $BUILD_DIR/
+          git commit -m "Add build $BUILD_NAME"
+          git push origin dev
 
   release:
     runs-on: ubuntu-latest
@@ -78,8 +79,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -89,7 +90,7 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access is this
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
