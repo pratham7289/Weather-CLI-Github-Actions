@@ -11,7 +11,7 @@ env:
   BUILD_DIR: "dev-merger-build"
 
 permissions:
-  contents: write  # Grant write permissions
+  contents: write  # Grant write permissions for releases
 
 jobs:
   build:
@@ -48,8 +48,8 @@ jobs:
     if: github.ref == 'refs/heads/dev'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -57,21 +57,15 @@ jobs:
           name: weather-tool-dev
           path: dist/
 
-      - name: Create folder for dev build and copy the file
-        run: |
-          BUILD_NAME="weather-dev-${{ env.BUILD_NUMBER }}"
-          mkdir -p $BUILD_DIR
-          cp dist/weather-dev-${{ env.BUILD_NUMBER }} $BUILD_DIR/$BUILD_NAME
-
-      - name: Commit and push dev build to GitHub repo
+      - name: Create GitHub Release for Dev
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_TOKEN }}  # Use your custom token
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add $BUILD_DIR/
-          git commit -m "Add build $BUILD_NAME"
-          git push origin dev
+          VERSION="dev-${{ env.BUILD_NUMBER }}"
+          gh release create "$VERSION" dist/weather-dev-${{ env.BUILD_NUMBER }} \
+            --title "Dev Build $VERSION" \
+            --notes "Automated dev build." \
+            --prerelease
 
   release:
     runs-on: ubuntu-latest
@@ -79,8 +73,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Install GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y gh
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -90,10 +84,9 @@ jobs:
 
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Default token with write access is this
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="v${{ env.BUILD_NUMBER }}"
           gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
             --title "Build $VERSION" \
             --notes "Automated build and release."
-
