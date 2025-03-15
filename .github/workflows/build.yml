@@ -93,9 +93,6 @@ jobs:
           chmod +x $HOME/.local/bin/gh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Authenticate GitHub CLI
-        run: echo "$GH_TOKEN" | gh auth login --with-token
-
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
