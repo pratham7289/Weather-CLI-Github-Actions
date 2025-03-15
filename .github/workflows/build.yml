@@ -8,14 +8,18 @@ on:
 
 env:
   BUILD_NUMBER: ${{ github.run_number }}
-  BUILD_DIR: "dev-merger-build"
 
 permissions:
-  contents: write  # Grant write permissions for releases using the default token
+  contents: write  # Required for creating releases
 
 jobs:
   build:
     runs-on: self-hosted
+
+    outputs:
+      binary_name: ${{ steps.set_output.outputs.binary_name }}
+      release_tag: ${{ steps.set_output.outputs.release_tag }}
+      dev_build_number: ${{ steps.set_output.outputs.dev_build_number }}
 
     steps:
       - name: Checkout code
@@ -27,66 +31,64 @@ jobs:
           pip3.9 install --upgrade pip
           pip3.9 install requests pyinstaller
 
-      - name: Build the project
+      - name: Set output names and build
+        id: set_output
         run: |
           pyinstaller --onefile weather.py
+
           if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            mv dist/weather dist/weather-dev-${{ env.BUILD_NUMBER }}
+            BIN_NAME="dev-bin-${{ env.BUILD_NUMBER }}"
+            TAG="v1.0.0-dev-${{ env.BUILD_NUMBER }}"
+            DEV_BUILD="${{ env.BUILD_NUMBER }}"
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            mv dist/weather dist/weather-main-${{ env.BUILD_NUMBER }}
+            # Find the latest dev build number to link it
+            DEV_BUILD=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
+            BIN_NAME="main-bin-${{ env.BUILD_NUMBER }}-from-dev-${DEV_BUILD}"
+            TAG="v1.0.0-${{ env.BUILD_NUMBER }}"
           fi
+
+          mv dist/weather dist/$BIN_NAME
+
+          echo "binary_name=$BIN_NAME" >> $GITHUB_OUTPUT
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "dev_build_number=$DEV_BUILD" >> $GITHUB_OUTPUT
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: weather-tool-${{ github.ref_name }}
-          path: dist/
-
-  store_dev_build:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/dev'
-
-    steps:
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: weather-tool-dev
-          path: dist/
-
-      - name: Create GitHub Release for Dev
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="dev-${{ env.BUILD_NUMBER }}"
-          gh release create "$VERSION" dist/weather-dev-${{ env.BUILD_NUMBER }} \
-            --title "Dev Build $VERSION" \
-            --notes "Automated dev build." \
-            --prerelease
+          name: ${{ steps.set_output.outputs.binary_name }}
+          path: dist/${{ steps.set_output.outputs.binary_name }}
 
   release:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Install GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y gh
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          name: weather-tool-main
+          name: ${{ needs.build.outputs.binary_name }}
           path: dist/
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (Pre-release for dev, Stable for main)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="v${{ env.BUILD_NUMBER }}"
-          gh release create "$VERSION" dist/weather-main-${{ env.BUILD_NUMBER }} \
-            --title "Build $VERSION" \
-            --notes "Automated build and release."
+          BIN_NAME="${{ needs.build.outputs.binary_name }}"
+          TAG="${{ needs.build.outputs.release_tag }}"
+          DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"
+
+          if [[ "$TAG" == *-dev-* ]]; then
+            gh release create "$TAG" dist/$BIN_NAME \
+              --title "Dev Build $DEV_BUILD" \
+              --notes "Automated pre-release build for development." \
+              --prerelease
+          else
+            gh release create "$TAG" dist/$BIN_NAME \
+              --title "Stable Build $TAG (from dev $DEV_BUILD)" \
+              --notes "Stable production release. Built from dev build $DEV_BUILD."
+          fi
+
