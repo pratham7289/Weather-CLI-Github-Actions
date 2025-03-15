@@ -52,7 +52,7 @@ jobs:
             TAG="v1.0.0-dev-$BUILD_NUMBER"
             DEV_BUILD="$BUILD_NUMBER"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            # Query latest dev release build number using gh CLI
+            # Query latest dev release and build number using gh CLI
             DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
             BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
             TAG="v1.0.0-$BUILD_NUMBER"
