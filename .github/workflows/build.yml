@@ -10,13 +10,16 @@ env:
   BUILD_NUMBER: ${{ github.run_number }}
 
 permissions:
-  contents: write  # Grant write permissions for releases using the default token
+  contents: write  # Required for creating releases
+
 jobs:
   build:
     runs-on: self-hosted
 
     outputs:
       binary_name: ${{ steps.set_output.outputs.binary_name }}
+      release_tag: ${{ steps.set_output.outputs.release_tag }}
+      dev_build_number: ${{ steps.set_output.outputs.dev_build_number }}
 
     steps:
       - name: Checkout code
@@ -28,27 +31,33 @@ jobs:
           pip3.9 install --upgrade pip
           pip3.9 install requests pyinstaller
 
-      - name: Build the project
+      - name: Set output names and build
+        id: set_output
         run: |
           pyinstaller --onefile weather.py
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            BIN_NAME="weather-dev-${{ env.BUILD_NUMBER }}"
-            mv dist/weather dist/$BIN_NAME
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            BIN_NAME="weather-main-${{ env.BUILD_NUMBER }}"
-            mv dist/weather dist/$BIN_NAME
-          fi
-          echo "BINARY_NAME=$BIN_NAME" >> $GITHUB_ENV
 
-      - name: Set output for binary name
-        id: set_output
-        run: echo "binary_name=${BINARY_NAME}" >> $GITHUB_OUTPUT
+          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            BIN_NAME="dev-bin-${{ env.BUILD_NUMBER }}"
+            TAG="v1.0.0-dev-${{ env.BUILD_NUMBER }}"
+            DEV_BUILD="${{ env.BUILD_NUMBER }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            # Find the latest dev build number to link it
+            DEV_BUILD=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
+            BIN_NAME="main-bin-${{ env.BUILD_NUMBER }}-from-dev-${DEV_BUILD}"
+            TAG="v1.0.0-${{ env.BUILD_NUMBER }}"
+          fi
+
+          mv dist/weather dist/$BIN_NAME
+
+          echo "binary_name=$BIN_NAME" >> $GITHUB_OUTPUT
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "dev_build_number=$DEV_BUILD" >> $GITHUB_OUTPUT
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: weather-tool-${{ github.ref_name }}
-          path: dist/${{ env.BINARY_NAME }}
+          name: ${{ steps.set_output.outputs.binary_name }}
+          path: dist/${{ steps.set_output.outputs.binary_name }}
 
   release:
     runs-on: ubuntu-latest
@@ -61,25 +70,25 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          name: weather-tool-${{ github.ref_name }}
+          name: ${{ needs.build.outputs.binary_name }}
           path: dist/
 
-      - name: Create GitHub Release (Pre-release for dev, Release for main)
+      - name: Create GitHub Release (Pre-release for dev, Stable for main)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="v1.0.0-${{ github.ref_name }}-${{ env.BUILD_NUMBER }}"
           BIN_NAME="${{ needs.build.outputs.binary_name }}"
-          
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            gh release create "$VERSION" dist/$BIN_NAME \
-              --title "Dev Build $VERSION" \
+          TAG="${{ needs.build.outputs.release_tag }}"
+          DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"
+
+          if [[ "$TAG" == *-dev-* ]]; then
+            gh release create "$TAG" dist/$BIN_NAME \
+              --title "Dev Build $DEV_BUILD" \
               --notes "Automated pre-release build for development." \
               --prerelease
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            VERSION="v1.0.0-${{ env.BUILD_NUMBER }}"
-            gh release create "$VERSION" dist/$BIN_NAME \
-              --title "Release $VERSION" \
-              --notes "Stable production release."
+          else
+            gh release create "$TAG" dist/$BIN_NAME \
+              --title "Stable Build $TAG (from dev $DEV_BUILD)" \
+              --notes "Stable production release. Built from dev build $DEV_BUILD."
           fi
 
