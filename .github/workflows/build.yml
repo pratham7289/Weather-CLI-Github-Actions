@@ -11,7 +11,7 @@ env:
   BUILD_DIR: "dev-merger-build"
 
 permissions:
-  contents: write  # Grant write permissions for releases
+  contents: write  # Grant write permissions for releases using the default token
 
 jobs:
   build:
