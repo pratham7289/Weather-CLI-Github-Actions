@@ -33,32 +33,26 @@ jobs:
 
       - name: Set output names and build
         id: set_output
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Build the binary with PyInstaller
           pyinstaller --onefile weather.py
 
-          BRANCH_NAME=$(echo "${GITHUB_REF##*/}")
-          BUILD_NUM="${{ env.BUILD_NUMBER }}"
-
-          if [[ "$BRANCH_NAME" == "dev" ]]; then
-            BIN_NAME="dev-bin-${BUILD_NUM}"
-            TAG="v1.0.0-dev-${BUILD_NUM}"
-            DEV_BUILD="$BUILD_NUM"
-          elif [[ "$BRANCH_NAME" == "main" ]]; then
-            # Install gh CLI temporarily to query latest dev release
-            sudo apt update && sudo apt install -y gh
-            LATEST_DEV_TAG=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName')
-            DEV_BUILD=$(echo "$LATEST_DEV_TAG" | grep -o '[0-9]*$' || echo "unknown")
-            BIN_NAME="main-bin-${BUILD_NUM}-from-dev-${DEV_BUILD}"
-            TAG="v1.0.0-${BUILD_NUM}"
-          else
-            echo "Unsupported branch: $BRANCH_NAME"
-            exit 1
+          # Use built-in environment variables to determine branch and build number
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
+            BIN_NAME="dev-bin-$BUILD_NUMBER"
+            TAG="v1.0.0-dev-$BUILD_NUMBER"
+            DEV_BUILD="$BUILD_NUMBER"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # Query latest dev release build number using gh CLI
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
+            BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
+            TAG="v1.0.0-$BUILD_NUMBER"
           fi
 
+          # Rename the binary accordingly
           mv dist/weather dist/$BIN_NAME
 
+          # Output variables for later jobs
           echo "binary_name=$BIN_NAME" >> $GITHUB_OUTPUT
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
           echo "dev_build_number=$DEV_BUILD" >> $GITHUB_OUTPUT
@@ -81,6 +75,9 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y gh
 
+      - name: Authenticate GitHub CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -88,8 +85,6 @@ jobs:
           path: dist/
 
       - name: Create GitHub Release (Pre-release for dev, Stable for main)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BIN_NAME="${{ needs.build.outputs.binary_name }}"
           TAG="${{ needs.build.outputs.release_tag }}"
