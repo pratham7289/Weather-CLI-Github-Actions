@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Use system-installed Python 3.9
         run: |
@@ -34,21 +34,25 @@ jobs:
       - name: Set output names and build
         id: set_output
         run: |
+          # Build the binary with PyInstaller
           pyinstaller --onefile weather.py
 
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            BIN_NAME="dev-bin-${{ env.BUILD_NUMBER }}"
-            TAG="v1.0.0-dev-${{ env.BUILD_NUMBER }}"
-            DEV_BUILD="${{ env.BUILD_NUMBER }}"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            # Find the latest dev build number to link it
-            DEV_BUILD=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
-            BIN_NAME="main-bin-${{ env.BUILD_NUMBER }}-from-dev-${DEV_BUILD}"
-            TAG="v1.0.0-${{ env.BUILD_NUMBER }}"
+          # Use built-in environment variables to determine branch and build number
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
+            BIN_NAME="dev-bin-$BUILD_NUMBER"
+            TAG="v1.0.0-dev-$BUILD_NUMBER"
+            DEV_BUILD="$BUILD_NUMBER"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # Query latest dev release build number using gh CLI
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
+            BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
+            TAG="v1.0.0-$BUILD_NUMBER"
           fi
 
+          # Rename the binary accordingly
           mv dist/weather dist/$BIN_NAME
 
+          # Output variables for later jobs
           echo "binary_name=$BIN_NAME" >> $GITHUB_OUTPUT
           echo "release_tag=$TAG" >> $GITHUB_OUTPUT
           echo "dev_build_number=$DEV_BUILD" >> $GITHUB_OUTPUT
@@ -65,7 +69,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install GitHub CLI
         run: |
@@ -97,4 +101,5 @@ jobs:
             gh release create "$TAG" dist/$BIN_NAME \
               --title "Stable Build $TAG (from dev $DEV_BUILD)" \
               --notes "Stable production release. Built from dev build $DEV_BUILD."
+          fi
 
