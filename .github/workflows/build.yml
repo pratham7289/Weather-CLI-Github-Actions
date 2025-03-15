@@ -34,9 +34,10 @@ jobs:
       - name: Install GitHub CLI on self-hosted runner (no sudo)
         run: |
           mkdir -p $HOME/.local/bin
-          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.27.0/gh_2.27.0_linux_amd64.tar.gz
+          # Use GitHub CLI v2.47.0 or later
+          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.47.0/gh_2.47.0_linux_amd64.tar.gz
           tar -xzf gh.tar.gz
-          mv gh_2.27.0_linux_amd64/bin/gh $HOME/.local/bin/
+          mv gh_2.47.0_linux_amd64/bin/gh $HOME/.local/bin/
           chmod +x $HOME/.local/bin/gh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -52,8 +53,8 @@ jobs:
             TAG="v1.0.0-dev-$BUILD_NUMBER"
             DEV_BUILD="$BUILD_NUMBER"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            # Query latest dev release and build number using gh CLI
-            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
+            # Query latest dev release build number using gh CLI
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" | awk '{print $1}' | grep -o '[0-9]*$')
             BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
             TAG="v1.0.0-$BUILD_NUMBER"
           fi
@@ -81,9 +82,10 @@ jobs:
       - name: Install GitHub CLI (no sudo)
         run: |
           mkdir -p $HOME/.local/bin
-          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.27.0/gh_2.27.0_linux_amd64.tar.gz
+          # Use GitHub CLI v2.47.0 or later
+          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.47.0/gh_2.47.0_linux_amd64.tar.gz
           tar -xzf gh.tar.gz
-          mv gh_2.27.0_linux_amd64/bin/gh $HOME/.local/bin/ || mv gh_2.27.0_linux_64/bin/gh $HOME/.local/bin/
+          mv gh_2.47.0_linux_amd64/bin/gh $HOME/.local/bin/
           chmod +x $HOME/.local/bin/gh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -114,4 +116,3 @@ jobs:
               --title "Stable Build $TAG (from dev $DEV_BUILD)" \
               --notes "Stable production release. Built from dev build $DEV_BUILD."
           fi
-
