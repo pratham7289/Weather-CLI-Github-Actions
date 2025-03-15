@@ -10,8 +10,7 @@ env:
   BUILD_NUMBER: ${{ github.run_number }}
 
 permissions:
-  contents: write  # Grant write permissions for creating releases
-
+  contents: write  # Grant write permissions for releases using the default token
 jobs:
   build:
     runs-on: self-hosted
