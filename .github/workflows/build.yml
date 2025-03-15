@@ -27,9 +27,9 @@ jobs:
 
       - name: Use system-installed Python 3.9
         run: |
-          python3.9 --version
-          pip3.9 install --upgrade pip
-          pip3.9 install requests pyinstaller
+          python3 --version
+          pip install --upgrade pip
+          pip install requests pyinstaller
 
       - name: Install GitHub CLI on self-hosted runner (no sudo)
         run: |
@@ -52,7 +52,7 @@ jobs:
             TAG="v1.0.0-dev-$BUILD_NUMBER"
             DEV_BUILD="$BUILD_NUMBER"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            # Query latest dev release build number using gh CLI
+            # Query latest dev release and build number using gh CLI
             DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
             BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
             TAG="v1.0.0-$BUILD_NUMBER"
@@ -83,7 +83,7 @@ jobs:
           mkdir -p $HOME/.local/bin
           curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.27.0/gh_2.27.0_linux_amd64.tar.gz
           tar -xzf gh.tar.gz
-          mv gh_2.27.0_linux_64/bin/gh $HOME/.local/bin/ || mv gh_2.27.0_linux_amd64/bin/gh $HOME/.local/bin/
+          mv gh_2.27.0_linux_amd64/bin/gh $HOME/.local/bin/ || mv gh_2.27.0_linux_64/bin/gh $HOME/.local/bin/
           chmod +x $HOME/.local/bin/gh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
