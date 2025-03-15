@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Use system-installed Python 3.9
         run: |
@@ -33,18 +33,28 @@ jobs:
 
       - name: Set output names and build
         id: set_output
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pyinstaller --onefile weather.py
 
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            BIN_NAME="dev-bin-${{ env.BUILD_NUMBER }}"
-            TAG="v1.0.0-dev-${{ env.BUILD_NUMBER }}"
-            DEV_BUILD="${{ env.BUILD_NUMBER }}"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            # Find the latest dev build number to link it
-            DEV_BUILD=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName' | grep -o '[0-9]*$')
-            BIN_NAME="main-bin-${{ env.BUILD_NUMBER }}-from-dev-${DEV_BUILD}"
-            TAG="v1.0.0-${{ env.BUILD_NUMBER }}"
+          BRANCH_NAME=$(echo "${GITHUB_REF##*/}")
+          BUILD_NUM="${{ env.BUILD_NUMBER }}"
+
+          if [[ "$BRANCH_NAME" == "dev" ]]; then
+            BIN_NAME="dev-bin-${BUILD_NUM}"
+            TAG="v1.0.0-dev-${BUILD_NUM}"
+            DEV_BUILD="$BUILD_NUM"
+          elif [[ "$BRANCH_NAME" == "main" ]]; then
+            # Install gh CLI temporarily to query latest dev release
+            sudo apt update && sudo apt install -y gh
+            LATEST_DEV_TAG=$(gh release list --limit 1 --repo ${{ github.repository }} --json tagName --jq '.[0].tagName')
+            DEV_BUILD=$(echo "$LATEST_DEV_TAG" | grep -o '[0-9]*$' || echo "unknown")
+            BIN_NAME="main-bin-${BUILD_NUM}-from-dev-${DEV_BUILD}"
+            TAG="v1.0.0-${BUILD_NUM}"
+          else
+            echo "Unsupported branch: $BRANCH_NAME"
+            exit 1
           fi
 
           mv dist/weather dist/$BIN_NAME
@@ -65,7 +75,11 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update && sudo apt install -y gh
 
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -82,11 +96,13 @@ jobs:
           DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"
 
           if [[ "$TAG" == *-dev-* ]]; then
+            echo "Creating pre-release $TAG..."
             gh release create "$TAG" dist/$BIN_NAME \
               --title "Dev Build $DEV_BUILD" \
               --notes "Automated pre-release build for development." \
               --prerelease
           else
+            echo "Creating stable release $TAG (from dev build $DEV_BUILD)..."
             gh release create "$TAG" dist/$BIN_NAME \
               --title "Stable Build $TAG (from dev $DEV_BUILD)" \
               --notes "Stable production release. Built from dev build $DEV_BUILD."
