@@ -1,0 +1,131 @@
+name: Build and Release Weather CLI Tool
+
+# Trigger the workflow on pushes to the 'dev' and 'main' branches
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+# Define environment variables
+env:
+  BUILD_NUMBER: ${{ github.run_number }}  # Use GitHub's run number as the build number
+
+# Set permissions for the workflow
+permissions:
+  contents: write  # Allow writing to the repository (e.g., creating releases)
+  id-token: write  # Allow writing ID tokens (for authentication)
+
+jobs:
+  build:
+    runs-on: self-hosted  # Use a self-hosted runner for the build job
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub token for authentication
+    outputs:
+      binary_name: ${{ steps.set_output.outputs.binary_name }}  # Output the binary name
+      release_tag: ${{ steps.set_output.outputs.release_tag }}  # Output the release tag
+      dev_build_number: ${{ steps.set_output.outputs.dev_build_number }}  # Output the dev build number
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4  # Checkout the code from the repository
+
+      # Step 2: Use system-installed Python 3.9 and install dependencies
+      - name: Use system-installed Python 3.9
+        run: |
+          python3 --version  # Print Python version for debugging
+          pip install --upgrade pip  # Upgrade pip to the latest version
+          pip install requests pyinstaller  # Install required Python packages
+
+      # Step 3: Install GitHub CLI on the self-hosted runner (without sudo)
+      - name: Install GitHub CLI on self-hosted runner (no sudo)
+        run: |
+          mkdir -p $HOME/.local/bin  # Create a local bin directory
+          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.47.0/gh_2.47.0_linux_amd64.tar.gz  # Download GitHub CLI
+          tar -xzf gh.tar.gz  # Extract the downloaded archive
+          mv gh_2.47.0_linux_amd64/bin/gh $HOME/.local/bin/  # Move the gh binary to the local bin directory
+          chmod +x $HOME/.local/bin/gh  # Make the gh binary executable
+          echo "$HOME/.local/bin" >> $GITHUB_PATH  # Add the local bin directory to the PATH
+
+      # Step 4: Set output names and build the binary using PyInstaller
+      - name: Set output names and build
+        id: set_output  # Give this step an ID for referencing its outputs
+        run: |
+          set -euxo pipefail  # Enable strict error handling
+          pyinstaller --onefile weather.py  # Build the binary using PyInstaller
+
+          # Determine the binary name, release tag, and dev build number based on the branch
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
+            BIN_NAME="dev-bin-${BUILD_NUMBER}"  # Binary name for dev branch
+            TAG="v1.0.0-dev-${BUILD_NUMBER}"  # Release tag for dev branch
+            DEV_BUILD="${BUILD_NUMBER}"  # Dev build number
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # Fetch the latest dev build number from GitHub releases
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | grep -o '[0-9]*$' || echo "0")
+            BIN_NAME="main-bin-${BUILD_NUMBER}-from-dev-${DEV_BUILD}"  # Binary name for main branch
+            TAG="v1.0.0-${BUILD_NUMBER}"  # Release tag for main branch
+          fi
+
+          mv dist/weather dist/${BIN_NAME}  # Rename the binary to the generated name
+
+          # Set outputs for use in subsequent steps
+          echo "binary_name=${BIN_NAME}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "dev_build_number=${DEV_BUILD}" >> $GITHUB_OUTPUT
+
+      # Step 5: Upload the built binary as a workflow artifact
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4  # Use the upload-artifact action
+        with:
+          name: ${{ steps.set_output.outputs.binary_name }}  # Name the artifact using the binary name
+          path: dist/${{ steps.set_output.outputs.binary_name }}  # Path to the binary file
+
+  release:
+    runs-on: ubuntu-latest  # Use a GitHub-hosted runner for the release job
+    needs: build  # Depend on the build job to complete first
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub token for authentication
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4  # Checkout the code from the repository
+
+      # Step 2: Install GitHub CLI (without sudo)
+      - name: Install GitHub CLI (no sudo)
+        run: |
+          mkdir -p $HOME/.local/bin  # Create a local bin directory
+          curl -fsSL -o gh.tar.gz https://github.com/cli/cli/releases/download/v2.47.0/gh_2.47.0_linux_amd64.tar.gz  # Download GitHub CLI
+          tar -xzf gh.tar.gz  # Extract the downloaded archive
+          mv gh_2.47.0_linux_amd64/bin/gh $HOME/.local/bin/  # Move the gh binary to the local bin directory
+          chmod +x $HOME/.local/bin/gh  # Make the gh binary executable
+          echo "$HOME/.local/bin" >> $GITHUB_PATH  # Add the local bin directory to the PATH
+
+      # Step 3: Download the build artifact from the build job
+      - name: Download build artifact
+        uses: actions/download-artifact@v4  # Use the download-artifact action
+        with:
+          name: ${{ needs.build.outputs.binary_name }}  # Name of the artifact to download
+          path: dist/  # Path to download the artifact to
+
+      # Step 4: Create a GitHub release (pre-release for dev, stable for main)
+      - name: Create GitHub Release (Pre-release for dev, Stable for main)
+        run: |
+          BIN_NAME="${{ needs.build.outputs.binary_name }}"  # Get the binary name from the build job
+          TAG="${{ needs.build.outputs.release_tag }}"  # Get the release tag from the build job
+          DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"  # Get the dev build number from the build job
+
+          # Check if the tag indicates a dev build
+          if [[ "$TAG" == *-dev-* ]]; then
+            # Create a pre-release for dev builds
+            gh release create "$TAG" "dist/$BIN_NAME" \
+              --title "Dev Build ${DEV_BUILD}" \
+              --notes "This is a pre-release build for development. Use this for testing and feedback." \
+              --prerelease
+          else
+            # Create a stable release for main builds
+            gh release create "$TAG" "dist/$BIN_NAME" \
+              --title "Stable Build ${TAG} (from dev ${DEV_BUILD})" \
+              --notes "This is a stable production release. It was built from dev build ${DEV_BUILD}."
+          fi
