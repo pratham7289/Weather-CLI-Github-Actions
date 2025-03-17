@@ -11,7 +11,7 @@ env:
 
 permissions:
   contents: write
-  id-token: write  # Required for GH_TOKEN authentication always
+  id-token: write
 
 jobs:
   build:
@@ -52,7 +52,7 @@ jobs:
             TAG="v1.0.0-dev-$BUILD_NUMBER"
             DEV_BUILD="$BUILD_NUMBER"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" | awk '{print $1}' | grep -o '[0-9]*$' || echo "0")
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" | grep "Pre-release" | awk '{print $1}' | grep -o '[0-9]*$' || echo "0")
             BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
             TAG="v1.0.0-$BUILD_NUMBER"
           fi
@@ -102,12 +102,14 @@ jobs:
           DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"
 
           if [[ "$TAG" == *-dev-* ]]; then
+            echo "Creating pre-release $TAG..."
             gh release create "$TAG" dist/$BIN_NAME \
               --title "Dev Build $DEV_BUILD" \
-              --notes "Automated pre-release build for development." \
+              --notes "This is a pre-release build for development. Use this for testing and feedback." \
               --prerelease
           else
+            echo "Creating stable release $TAG (from dev build $DEV_BUILD)..."
             gh release create "$TAG" dist/$BIN_NAME \
               --title "Stable Build $TAG (from dev $DEV_BUILD)" \
-              --notes "Stable production release. Built from dev build $DEV_BUILD."
+              --notes "This is a stable production release. It was built from dev build $DEV_BUILD."
           fi
