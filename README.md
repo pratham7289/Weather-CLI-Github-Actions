@@ -1,177 +1,52 @@
-Weather CLI Tool - Build and Release Workflow
-This repository contains a Weather CLI tool and a GitHub Actions workflow to automate building and releasing the tool. The workflow supports pre-releases for the dev branch and stable releases for the main branch.
+Weather CLI Tool - Build & Release Automation
+This repository contains a Python-based Weather CLI Tool. The development and release process is fully automated using GitHub Actions, supporting both development and production builds.
 
-Workflow Overview
-The workflow is defined in .github/workflows/build.yml and performs the following tasks:
-
-Build the Binary:
-
-The workflow builds the Weather CLI tool using PyInstaller to create a single executable binary.
-
-The binary is named differently for dev and main branches to distinguish between pre-releases and stable releases.
-
-Create GitHub Releases:
-
-For the dev branch, the workflow creates a pre-release with a version tag like v1.0.0-dev-{BUILD_NUMBER}.
-
-For the main branch, the workflow creates a stable release with a version tag like v1.0.0-{BUILD_NUMBER}.
-
-Artifact Management:
-
-The built binary is uploaded as a workflow artifact during the build process.
-
-The binary is then downloaded and attached to the GitHub release.
-
-Workflow Steps
-1. Build Job:
-Runs on a self-hosted runner.
-
-Checks out the code.
-
-Installs Python dependencies (requests and PyInstaller).
-
-Installs the GitHub CLI (gh) for managing releases.
-
-Builds the binary using PyInstaller and sets outputs for:
-
-Binary name (binary_name).
-
-Release tag (release_tag).
-
-Dev build number (dev_build_number).
-
-Uploads the binary as a workflow artifact.
-
-2. Release Job:
-Runs on a GitHub-hosted runner.
-
-Checks out the code.
-
-Installs the GitHub CLI (gh).
-
-Downloads the built binary artifact.
-
-Creates a GitHub release:
-
-Pre-release for the dev branch.
-
-Stable release for the main branch.
-
-How to Use the Workflow
-1. Start Working on a Feature Branch
-Create and switch to a new feature branch:
-
+🚀 Features
+Automatic binary builds on dev and main branches.
+Pre-release generation for dev branch.
+Stable release generation for main branch.
+Versioning and tagging based on GitHub Action's run number.
+Artifacts upload for each build.
+GitHub Releases publishing with appropriate tags.
+📦 Branching & Release Workflow
+Branch	Purpose	Output
+feature	Development of new features	Merged into dev for testing
+dev	Integration and testing of features	Pre-release uploaded to GitHub Releases
+main	Production-ready code	Stable release uploaded to GitHub Releases
+🔧 Build & Release Process
+1. Feature Development
 bash
 Copy
-git checkout -b feature
-Make your changes and update the workflow file (if needed).
-
-2. Replace the Old Workflow with the New Code
-Add the updated workflow file:
-
-bash
-Copy
-git add .github/workflows/build.yml
-Commit the changes:
-
-bash
-Copy
-git commit -m "Updated workflow for proper dev and main releases"
-Push the feature branch to GitHub:
-
-bash
-Copy
+Edit
+git checkout feature
+# Make changes and commit
 git push origin feature
-3. Merge Feature into dev for Testing
-Switch to the dev branch:
-
+2. Merge Feature to Dev (Pre-release)
 bash
 Copy
+Edit
 git checkout dev
-Pull the latest changes:
-
-bash
-Copy
 git pull origin dev
-Merge the feature branch into dev:
-
-bash
-Copy
 git merge feature
-Push the changes to GitHub:
-
-bash
-Copy
 git push origin dev
-The workflow will automatically trigger and create a pre-release for testing.
-
-4. Merge dev into main for Stable Release
-After testing the pre-release, switch to the main branch:
-
+⚙️ Triggers build and pre-release creation.
+Binary named as dev-bin-<build_number>.
+Tag format: v1.0.0-dev-<build_number>.
+3. Merge Dev to Main (Stable Release)
 bash
 Copy
+Edit
 git checkout main
-Pull the latest changes:
-
-bash
-Copy
 git pull origin main
-Merge the dev branch into main:
-
-bash
-Copy
 git merge dev
-Push the changes to GitHub:
-
-bash
-Copy
 git push origin main
-The workflow will automatically trigger and create a stable release.
-
-Workflow Triggers
-The workflow is triggered on pushes to the following branches:
-
-dev: Creates a pre-release.
-
-main: Creates a stable release.
-
-Artifacts and Releases
-Pre-Releases:
-
-Created from the dev branch.
-
-Tag format: v1.0.0-dev-{BUILD_NUMBER}.
-
-Example: v1.0.0-dev-5.
-
-Stable Releases:
-
-Created from the main branch.
-
-Tag format: v1.0.0-{BUILD_NUMBER}.
-
-Example: v1.0.0-10.
-
-Artifacts:
-
-The built binary is uploaded as a workflow artifact during the build process.
-
-The binary is attached to the GitHub release.
-
-Example Workflow Run
-Push to dev:
-
-A pre-release is created with a binary named dev-bin-{BUILD_NUMBER}.
-
-Push to main:
-
-A stable release is created with a binary named main-bin-{BUILD_NUMBER}-from-dev-{DEV_BUILD_NUMBER}.
-
-Requirements
-GitHub CLI (gh):
-
-The workflow uses the GitHub CLI to create releases. Ensure the CLI is installed on the runner.
-
-Self-Hosted Runner:
-
-The build job runs on a self-hosted runner. Ensure the runner is properly configured with Python and other dependencies.
+⚙️ Triggers build and stable release creation.
+Binary named as main-bin-<build_number>-from-dev-<dev_build_number>.
+Tag format: v1.0.0-<build_number>.
+📤 GitHub Releases Structure
+Branch	Release Type	Tag Example	Binary Example
+dev	Pre-release	v1.0.0-dev-42	dev-bin-42
+main	Stable release	v1.0.0-43	main-bin-43-from-dev-42
+🔑 Security & Authentication
+Uses GitHub Token (GITHUB_TOKEN) for authentication.
+No password required for build or release processes.
