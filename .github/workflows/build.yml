@@ -11,12 +11,13 @@ env:
 
 permissions:
   contents: write
-  id-token: write  # Required for GH_TOKEN authentication always as one
+  id-token: write
 
 jobs:
   build:
     runs-on: self-hosted
-
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       binary_name: ${{ steps.set_output.outputs.binary_name }}
       release_tag: ${{ steps.set_output.outputs.release_tag }}
@@ -48,21 +49,20 @@ jobs:
           pyinstaller --onefile weather.py
 
           if [ "$GITHUB_REF" = "refs/heads/dev" ]; then
-            BIN_NAME="dev-bin-$BUILD_NUMBER"
-            TAG="v1.0.0-dev-$BUILD_NUMBER"
-            DEV_BUILD="$BUILD_NUMBER"
+            BIN_NAME="dev-bin-${BUILD_NUMBER}"
+            TAG="v1.0.0-dev-${BUILD_NUMBER}"
+            DEV_BUILD="${BUILD_NUMBER}"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            # Fetch the latest dev build number from pre-releases
             DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | grep -o '[0-9]*$' || echo "0")
-            BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
-            TAG="v1.0.0-$BUILD_NUMBER"
+            BIN_NAME="main-bin-${BUILD_NUMBER}-from-dev-${DEV_BUILD}"
+            TAG="v1.0.0-${BUILD_NUMBER}"
           fi
 
-          mv dist/weather dist/$BIN_NAME
+          mv dist/weather dist/${BIN_NAME}
 
-          echo "binary_name=$BIN_NAME" >> $GITHUB_OUTPUT
-          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
-          echo "dev_build_number=$DEV_BUILD" >> $GITHUB_OUTPUT
+          echo "binary_name=${BIN_NAME}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "dev_build_number=${DEV_BUILD}" >> $GITHUB_OUTPUT
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
@@ -97,20 +97,18 @@ jobs:
 
       - name: Create GitHub Release (Pre-release for dev, Stable for main)
         run: |
-          mkdir -p dist
           BIN_NAME="${{ needs.build.outputs.binary_name }}"
           TAG="${{ needs.build.outputs.release_tag }}"
           DEV_BUILD="${{ needs.build.outputs.dev_build_number }}"
 
           if [[ "$TAG" == *-dev-* ]]; then
-            echo "Creating pre-release $TAG..."
-            gh release create "$TAG" dist/$BIN_NAME \
-              --title "Dev Build $DEV_BUILD" \
+            gh release create "$TAG" "dist/$BIN_NAME" \
+              --title "Dev Build ${DEV_BUILD}" \
               --notes "This is a pre-release build for development. Use this for testing and feedback." \
               --prerelease
           else
-            echo "Creating stable release $TAG (from dev build $DEV_BUILD)..."
-            gh release create "$TAG" dist/$BIN_NAME \
-              --title "Stable Build $TAG (from dev $DEV_BUILD)" \
-              --notes "This is a stable production release. It was built from dev build $DEV_BUILD."
+            gh release create "$TAG" "dist/$BIN_NAME" \
+              --title "Stable Build ${TAG} (from dev ${DEV_BUILD})" \
+              --notes "This is a stable production release. It was built from dev build ${DEV_BUILD}."
           fi
+
