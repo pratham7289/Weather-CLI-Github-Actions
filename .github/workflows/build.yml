@@ -52,7 +52,8 @@ jobs:
             TAG="v1.0.0-dev-$BUILD_NUMBER"
             DEV_BUILD="$BUILD_NUMBER"
           elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" | grep "Pre-release" | awk '{print $1}' | grep -o '[0-9]*$' || echo "0")
+            # Fetch the latest dev build number from pre-releases
+            DEV_BUILD=$(gh release list --limit 1 --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease --jq '.[] | select(.isPrerelease == true) | .tagName' | grep -o '[0-9]*$' || echo "0")
             BIN_NAME="main-bin-$BUILD_NUMBER-from-dev-$DEV_BUILD"
             TAG="v1.0.0-$BUILD_NUMBER"
           fi
